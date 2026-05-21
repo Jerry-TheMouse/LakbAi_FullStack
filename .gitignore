@@ -1,0 +1,15 @@
+# Backend
+node_modules/
+.env
+
+# Frontend / Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+ios/Flutter/Generated.xcconfig
+android/local.properties
+.metadata
+.idea/
+*.apk
+*.ipa
