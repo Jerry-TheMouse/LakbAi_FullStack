@@ -74,11 +74,20 @@ class LakbAiApp extends StatelessWidget {
           builder: (context, state) => const SignupScreen(),
         ),
         
+        // --- ADDED THIS NEW ROUTE TO FIX "PAGE NOT FOUND" (404) ---
+        GoRoute(
+          path: '/details',
+          builder: (context, state) {
+            final requestObj = state.extra as Map<String, dynamic>? ?? {};
+            return AdminRequestDetailsScreen(request: requestObj);
+          },
+        ),
+
         // Admin details deep link isolated from shell standard viewport views
         GoRoute(
           path: '/admin-request-details',
           builder: (context, state) {
-            final requestObj = state.extra as Map<String, dynamic>;
+            final requestObj = state.extra as Map<String, dynamic>? ?? {};
             return AdminRequestDetailsScreen(request: requestObj);
           },
         ),

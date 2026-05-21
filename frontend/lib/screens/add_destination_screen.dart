@@ -17,7 +17,7 @@ class AddDestinationScreen extends StatefulWidget {
 class _AddDestinationScreenState extends State<AddDestinationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _addressController = TextEditingController(); // NEW
+  final _addressController = TextEditingController(); 
   final _coordinatesController = TextEditingController();
   final _descriptionController = TextEditingController(); 
   
@@ -63,16 +63,16 @@ class _AddDestinationScreenState extends State<AddDestinationScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      // ADAPTING FLUTTER TO THE ORIGINAL BACKEND:
       final newDest = {
         'name': _titleController.text.trim(),
         'region': _selectedRegion,
         'category': _selectedCategory,
-        'location': _addressController.text.trim(), // Saving Address
-        'coordinates': _coordinatesController.text.trim(),
+        'address': _addressController.text.trim(),       // Matches original backend
+        'coordinates': _coordinatesController.text.trim(), // Matches original backend
         'description': _descriptionController.text.trim(), 
-        'image': _base64Image, 
-        'status': 'Under Review',
-        'views': 0,
+        'image': _base64Image,                           // Matches original backend
+        // We do NOT send 'status' here. Your Node.js routes.js handles it automatically!
       };
 
       await Provider.of<DestinationsProvider>(context, listen: false).addDestination(newDest);
@@ -106,7 +106,6 @@ class _AddDestinationScreenState extends State<AddDestinationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image Picker
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(

@@ -17,7 +17,10 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<DestinationsProvider>(context, listen: false).fetchDestinations();
+      // THE FIX IS HERE: Ensures the widget is still on screen before fetching
+      if (mounted) {
+        Provider.of<DestinationsProvider>(context, listen: false).fetchDestinations();
+      }
     });
   }
 
@@ -91,7 +94,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/add-destination'), // <-- Added routing here!
+        onPressed: () => context.push('/add-destination'), 
         backgroundColor: const Color(0xFF059669),
         icon: const Icon(LucideIcons.plus, color: Colors.white),
         label: const Text('Add New', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),

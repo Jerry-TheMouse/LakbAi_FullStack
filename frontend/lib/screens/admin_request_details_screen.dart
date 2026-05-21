@@ -1,8 +1,9 @@
-// frontend/lib/screens/admin_request_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import '../providers/admin_provider.dart';
 
 class AdminRequestDetailsScreen extends StatelessWidget {
@@ -14,13 +15,24 @@ class AdminRequestDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
 
-    // Dynamic Image URL parsing safely handling Base64 payloads or remote strings
-    final String photoStr = request['photo'] ?? '';
+    // FIXED: Now checks for 'image' (since we reverted the backend) and falls back to 'photo' just in case.
+    final String photoStr = request['image'] ?? request['photo'] ?? '';
     final bool isBase64 = photoStr.startsWith('data:image');
+    Uint8List? imageBytes;
+
+    // THE FIX: Clean the base64 string before decoding to prevent the Red Screen of Death
+    if (isBase64) {
+      try {
+        final cleanBase64 = photoStr.split(',').last.replaceAll(RegExp(r'\s+'), '');
+        imageBytes = base64Decode(cleanBase64);
+      } catch (e) {
+        debugPrint('Base64 decode error: $e');
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(request['name'] ?? 'Review Request', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(request['name'] ?? request['title'] ?? 'Review Request', style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF064E3B),
         elevation: 0,
@@ -39,10 +51,11 @@ class AdminRequestDetailsScreen extends StatelessWidget {
                     ? DecorationImage(image: NetworkImage(photoStr), fit: BoxFit.cover)
                     : null,
               ),
-              child: isBase64
+              child: isBase64 && imageBytes != null
                   ? Image.memory(
-                      Uri.parse(photoStr).data!.contentAsBytes(),
+                      imageBytes,
                       fit: BoxFit.cover,
+                      width: double.infinity,
                     )
                   : (photoStr.isEmpty
                       ? const Center(child: Icon(LucideIcons.image, size: 50, color: Colors.grey))
@@ -67,7 +80,7 @@ class AdminRequestDetailsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    request['name'] ?? 'Untitled Destination',
+                    request['name'] ?? request['title'] ?? 'Untitled Destination',
                     style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF064E3B)),
                   ),
                   const SizedBox(height: 8),
@@ -82,7 +95,7 @@ class AdminRequestDetailsScreen extends StatelessWidget {
                       children: [
                         const Text('Full Address', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                         const SizedBox(height: 4),
-                        Text(request['fullAddress'] ?? 'No address provided', style: const TextStyle(fontSize: 15)),
+                        Text(request['address'] ?? request['fullAddress'] ?? 'No address provided', style: const TextStyle(fontSize: 15)),
                       ],
                     ),
                   ),
@@ -98,7 +111,7 @@ class AdminRequestDetailsScreen extends StatelessWidget {
                       children: [
                         const Text('Map Coordinates', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                         const SizedBox(height: 4),
-                        Text(request['mapCoordinates'] ?? '0.0000, 0.0000', style: const TextStyle(fontSize: 15, fontFamily: 'Courier')),
+                        Text(request['coordinates'] ?? request['mapCoordinates'] ?? '0.0000, 0.0000', style: const TextStyle(fontSize: 15, fontFamily: 'Courier')),
                       ],
                     ),
                   ),

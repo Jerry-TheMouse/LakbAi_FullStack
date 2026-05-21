@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:hive/hive.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../config.dart'; // <-- Import centralized config
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config.dart'; 
 
 class DestinationsProvider extends ChangeNotifier {
   List<dynamic> _destinations = [];
@@ -15,10 +15,10 @@ class DestinationsProvider extends ChangeNotifier {
   String get error => _error;
 
   final _box = Hive.box('destinationsBox');
+  final _secureStorage = const FlutterSecureStorage(); // FIXED: Now uses the correct secure storage vault
 
   Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('jwt_token');
+    return await _secureStorage.read(key: 'jwt_token'); // FIXED: Reads token from correct vault
   }
 
   Future<void> fetchDestinations() async {
@@ -61,7 +61,7 @@ class DestinationsProvider extends ChangeNotifier {
     try {
       final token = await _getToken();
       final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/destinations'), // Centralized Base URL
+        Uri.parse('${AppConfig.baseUrl}/destinations'), 
         headers: {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
@@ -78,6 +78,7 @@ class DestinationsProvider extends ChangeNotifier {
         throw Exception(errorData['message'] ?? 'Failed to add destination');
       }
     } catch (e) {
+      debugPrint('Add Destination Error: $e'); // Added print to help trace future errors
       final queuedDest = Map<String, dynamic>.from(destinationData);
       queuedDest['status'] = 'Pending Sync';
       
