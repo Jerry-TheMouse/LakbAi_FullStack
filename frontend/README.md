@@ -17,7 +17,11 @@ samples, guidance on mobile development, and a full API reference.
 
 
 
-auth_provider.dart
-destinations_provider.dart
-itinerary_provider.dart
-admin_provider.dart
+config.dart
+// frontend/lib/config.dart
+
+class AppConfig {
+  // Centralized base URL configuration
+  // Whenever you change networks, change ONLY this single string!
+  static const String baseUrl = 'http://10.0.26.4:3000/api';--change IP if usign local host
+}
