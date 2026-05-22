@@ -15,11 +15,11 @@ class _SignupScreenState extends State<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _contactController = TextEditingController(); // Added for Contact Info
   
-  // NEW: State variable for password visibility
   bool _obscurePassword = true;
-  
-  String _selectedRole = 'tourist'; // FIX: Changed from 'user' to 'tourist'
+  String _selectedRole = 'tourist'; // Defaults to tourist for DB rule
+  String _selectedRegion = 'Luzon'; // Added for Region
   bool _isLoading = false;
 
   Future<void> _handleSignup() async {
@@ -30,12 +30,16 @@ class _SignupScreenState extends State<SignupScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
         _selectedRole,
+        _selectedRegion,
+        _contactController.text.trim(),
       );
+      // ONLY navigates if registration succeeds
       if (mounted) context.go('/');
     } catch (e) {
+      // Shows the red error popup and Stays on this screen
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.toString().replaceAll("Exception: ", "")), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -46,7 +50,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF064E3B), // Dark emerald for signup
+      backgroundColor: const Color(0xFF064E3B), 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -89,12 +93,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 
                 TextField(
                   controller: _passwordController,
-                  obscureText: _obscurePassword, // NEW: Controlled by our variable
+                  obscureText: _obscurePassword, 
                   decoration: InputDecoration(
                     labelText: 'Password',
                     prefixIcon: const Icon(LucideIcons.lock, color: Color(0xFF059669)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    // NEW: The clickable Eye Icon
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
@@ -110,18 +113,44 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                TextField(
+                  controller: _contactController,
+                  decoration: InputDecoration(
+                    labelText: 'Contact Number',
+                    prefixIcon: const Icon(LucideIcons.phone, color: Color(0xFF059669)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
+                  value: _selectedRole,
                   decoration: InputDecoration(
                     labelText: 'Account Type',
                     prefixIcon: const Icon(LucideIcons.briefcase, color: Color(0xFF059669)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'tourist', child: Text('Tourist')), // FIX: Changed from 'user' to 'tourist'
+                    DropdownMenuItem(value: 'tourist', child: Text('Tourist')),
                     DropdownMenuItem(value: 'tourism_office', child: Text('Tourism Office')),
                   ],
                   onChanged: (value) => setState(() => _selectedRole = value!),
+                ),
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  value: _selectedRegion,
+                  decoration: InputDecoration(
+                    labelText: 'Region',
+                    prefixIcon: const Icon(LucideIcons.map, color: Color(0xFF059669)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Luzon', child: Text('Luzon')),
+                    DropdownMenuItem(value: 'Visayas', child: Text('Visayas')),
+                    DropdownMenuItem(value: 'Mindanao', child: Text('Mindanao')),
+                  ],
+                  onChanged: (value) => setState(() => _selectedRegion = value!),
                 ),
                 const SizedBox(height: 24),
                 

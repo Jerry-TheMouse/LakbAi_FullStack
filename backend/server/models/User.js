@@ -8,28 +8,22 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['tourist', 'tourism_office', 'admin'], default: 'tourist' },
   region: { 
     type: String, 
-    enum: ['Luzon', 'Visayas', 'Mindanao', null] 
+    enum: ['Luzon', 'Visayas', 'Mindanao', null],
+    default: 'Luzon'
   },
-  contactNumber: { type: String },
+  contactNumber: { type: String, default: '' }, // Added for Tourism Office
   createdAt: { type: Date, default: Date.now }
 });
 
-// Hash password before saving - Fixed to ensure 'next' is always valid
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  try {
-    this.password = await bcrypt.hash(this.password, 10);
-    next();
-  } catch (err) {
-    // If an error occurs, pass it to next instead of crashing
-    next(err);
-  }
-});
-
-// Method to compare password
-userSchema.pre('save', async function() { 
+// FIX 1: Removed 'next' parameter. Modern Mongoose handles async saves automatically.
+userSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
+
+// FIX 2: Ensure comparePassword is bound correctly to the schema methods
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
 export const User = mongoose.model('User', userSchema);

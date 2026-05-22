@@ -11,10 +11,8 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   bool get isLoading => _isLoading;
 
-  // --- ADD THESE TWO GETTERS TO FIX THE ERROR ---
   bool get isAdmin => _user != null && _user!['role'] == 'admin';
   bool get isTourismOffice => _user != null && _user!['role'] == 'tourism_office';
-  // ----------------------------------------------
 
   final _storage = const FlutterSecureStorage();
 
@@ -51,11 +49,12 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } else {
       final errorData = jsonDecode(response.body);
-      throw Exception(errorData['message'] ?? 'Invalid credentials');
+      // This stops navigation on wrong password
+      throw Exception(errorData['message'] ?? 'Invalid credentials'); 
     }
   }
 
-  Future<void> register(String name, String email, String password, String role) async {
+  Future<void> register(String name, String email, String password, String role, String region, String contactNumber) async {
     final response = await http.post(
       Uri.parse('${AppConfig.baseUrl}/auth/signup'),
       headers: {'Content-Type': 'application/json'},
@@ -64,6 +63,8 @@ class AuthProvider extends ChangeNotifier {
         'email': email,
         'password': password,
         'role': role,
+        'region': region,
+        'contactNumber': contactNumber,
       }),
     );
 
@@ -77,6 +78,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } else {
       final errorData = jsonDecode(response.body);
+      // This stops navigation on failed registration
       throw Exception(errorData['message'] ?? 'Registration failed');
     }
   }
