@@ -1,7 +1,6 @@
 // frontend/lib/config.dart
 
 class AppConfig {
-  // Centralized base URL configuration
-  // Whenever you change networks, change ONLY this single string!
-  static const String baseUrl = 'http://10.0.26.4:3000/api';
+  // Make sure there is NO trailing slash at the end of the URL!
+  static const String baseUrl = 'https://lakbai-jzcw.onrender.com/api'; 
 }

@@ -4,7 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:convert';
 import '../providers/destinations_provider.dart';
-import '../providers/itinerary_provider.dart'; // <-- THE FIX: Added Itinerary Provider bridge
+import '../providers/itinerary_provider.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -34,14 +34,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
       try {
         final base64String = rawImageUrl.split(',').last.replaceAll(RegExp(r'\s+'), '');
         final bytes = base64Decode(base64String);
-        return Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity));
+        return Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity, height: double.infinity));
       } catch (e) {
-        return Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity);
+        return Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity, height: double.infinity);
       }
     } else if (rawImageUrl.startsWith('http')) {
-      return Image.network(rawImageUrl, fit: BoxFit.cover, width: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity));
+      return Image.network(rawImageUrl, fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity, height: double.infinity));
     } else {
-      return Image.network('http://localhost:3000/$rawImageUrl', fit: BoxFit.cover, width: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity));
+      return Image.network('http://localhost:3000/$rawImageUrl', fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (c, e, s) => Image.asset('assets/images/hero-bg.jpg', fit: BoxFit.cover, width: double.infinity, height: double.infinity));
     }
   }
 
@@ -235,14 +235,11 @@ class _DestinationDetailsModalState extends State<_DestinationDetailsModal> {
   bool _isFavorite = false;
   int _hoveredStar = 0;
 
-  // --- THE FIX: Bridge to ItineraryProvider ---
   void _toggleFavorite() {
     setState(() => _isFavorite = !_isFavorite);
     
     if (_isFavorite) {
       final destName = widget.dest['name'] ?? widget.dest['title'] ?? 'Unknown Destination';
-      
-      // Send it straight to the Planner's database queue!
       Provider.of<ItineraryProvider>(context, listen: false).addManualDestination(destName);
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -284,30 +281,11 @@ class _DestinationDetailsModalState extends State<_DestinationDetailsModal> {
             builder: (context, constraints) {
               bool isDesktop = constraints.maxWidth > 800;
               
-              Widget mediaSection = Column(
-                children: [
-                  Expanded(flex: 1, child: SizedBox(width: double.infinity, child: widget.imageBuilder(rawImageUrl))),
-                  Expanded(
-                    flex: 1, 
-                    child: Container(
-                      width: double.infinity,
-                      color: Colors.grey[200],
-                      child: Stack(
-                        children: [
-                          Center(child: Icon(LucideIcons.map, size: 64, color: Colors.grey[400])),
-                          Positioned(
-                            top: 16, left: 16,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)]),
-                              child: const Row(children: [Icon(LucideIcons.map, size: 14, color: Color(0xFF059669)), SizedBox(width: 4), Text('Live Map', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF064E3B)))]),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              // FIXED: Removed the map, image now takes full available height and width of this section
+              Widget mediaSection = SizedBox(
+                width: double.infinity,
+                height: double.infinity,
+                child: widget.imageBuilder(rawImageUrl),
               );
 
               Widget infoSection = Container(
