@@ -15,11 +15,11 @@ class _SignupScreenState extends State<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _contactController = TextEditingController(); // Added for Contact Info
+  final _contactController = TextEditingController(); 
   
   bool _obscurePassword = true;
-  String _selectedRole = 'tourist'; // Defaults to tourist for DB rule
-  String _selectedRegion = 'Luzon'; // Added for Region
+  String _selectedRole = 'tourist'; 
+  String _selectedRegion = 'Luzon'; 
   bool _isLoading = false;
 
   Future<void> _handleSignup() async {
@@ -33,10 +33,15 @@ class _SignupScreenState extends State<SignupScreen> {
         _selectedRegion,
         _contactController.text.trim(),
       );
-      // ONLY navigates if registration succeeds
-      if (mounted) context.go('/');
+      
+      // FIX: Show success message and navigate to Login screen instead of Home
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful! Please log in.'), backgroundColor: Colors.green),
+        );
+        context.go('/login'); 
+      }
     } catch (e) {
-      // Shows the red error popup and Stays on this screen
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceAll("Exception: ", "")), backgroundColor: Colors.red),

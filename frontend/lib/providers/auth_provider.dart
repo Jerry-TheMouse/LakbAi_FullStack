@@ -49,7 +49,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } else {
       final errorData = jsonDecode(response.body);
-      // This stops navigation on wrong password
       throw Exception(errorData['message'] ?? 'Invalid credentials'); 
     }
   }
@@ -69,16 +68,11 @@ class AuthProvider extends ChangeNotifier {
     );
 
     if (response.statusCode == 201) {
-      final data = jsonDecode(response.body);
-      _user = data['user'];
-      
-      await _storage.write(key: 'jwt_token', value: data['token']);
-      await _storage.write(key: 'user_data', value: jsonEncode(data['user']));
-      
+      // FIX: Removed the token saving and user assignment here.
+      // We just notify listeners that loading is done, keeping the user logged out.
       notifyListeners();
     } else {
       final errorData = jsonDecode(response.body);
-      // This stops navigation on failed registration
       throw Exception(errorData['message'] ?? 'Registration failed');
     }
   }
