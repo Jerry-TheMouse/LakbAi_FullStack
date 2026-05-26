@@ -1,5 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
+import crypto from 'crypto';
 import { User } from './models/User.js';
 import { Destination, Itinerary } from './models/Data.js';
 import { GoogleGenAI } from "@google/genai";
@@ -8,25 +10,163 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Middleware to verify JWT
+// ==========================================
+// JWKS CONFIGURATION (GATEWAY SSO)
+// ==========================================
+const jwksUri = process.env.JWKS_URI || 'http://localhost:1738/.well-known/jwks.json';
+const client = jwksClient({
+  jwksUri: jwksUri,
+  cache: true,
+  rateLimit: true,
+  jwksRequestsPerMinute: 5
+});
+
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, function(err, key) {
+    if (err) {
+      console.error("[Auth Error] Failed to fetch signing key:", err.message);
+      return callback(err, null);
+    }
+    const signingKey = key.publicKey || key.rsaPublicKey;
+    callback(null, signingKey);
+  });
+}
+
+// ==========================================
+// UNIFIED AUTHENTICATION MIDDLEWARE
+// ==========================================
 const authenticate = async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Missing or invalid authorization header.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const decodedUnverified = jwt.decode(token, { complete: true });
+  
+  if (!decodedUnverified || !decodedUnverified.header) {
+    return res.status(401).json({ message: 'Invalid token format.' });
+  }
+
+  const algorithm = decodedUnverified.header.alg;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user) return res.status(401).json({ message: 'User not found' });
-    
-    req.user = user;
-    next();
+    if (algorithm === 'RS256') {
+      jwt.verify(token, getKey, { algorithms: ['RS256'] }, async (err, decoded) => {
+        if (err) {
+          console.warn("[Auth Warn] SSO token verification failed:", err.message);
+          return res.status(401).json({ message: 'Super App token expired or invalid.' });
+        }
+        
+        const user = await User.findOne({ 
+          $or: [{ tawiTawiId: decoded.sub }, { email: decoded.email }] 
+        }).select('-password');
+        
+        if (!user) {
+          console.warn(`[Auth Warn] Unauthorized access attempt. SSO identity not registered locally: ${decoded.email}`);
+          return res.status(401).json({ message: 'SSO user not mapped to local application.' });
+        }
+
+        req.user = user;
+        return next();
+      });
+    } else if (algorithm === 'HS256') {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = await User.findById(decoded.id).select('-password');
+      
+      if (!user) {
+        console.warn(`[Auth Warn] Unauthorized access attempt. Native user ID not found: ${decoded.id}`);
+        return res.status(401).json({ message: 'User not found' });
+      }
+
+      req.user = user;
+      return next();
+    } else {
+      console.warn(`[Auth Warn] Rejected unsupported token algorithm: ${algorithm}`);
+      return res.status(401).json({ message: 'Unsupported authentication method.' });
+    }
   } catch (err) {
-    res.status(401).json({ message: 'Invalid token' });
+    console.error("[Auth Error] Internal token processing exception:", err.message);
+    return res.status(401).json({ message: 'Authentication processing failed.' });
   }
 };
 
 // ==========================================
-// AUTH ROUTES
+// INTERNAL B2B HANDSHAKE ROUTES
+// ==========================================
+const internalAuth = (req, res, next) => {
+  const gatewaySecret = req.headers['x-internal-gateway-secret'];
+  const expectedSecret = process.env.GATEWAY_INTERNAL_SECRET;
+  
+  if (!gatewaySecret || gatewaySecret !== expectedSecret) {
+    console.warn("[Security Warn] Unauthorized internal handshake attempt detected.");
+    return res.status(401).json({ success: false, message: 'Unauthorized internal access.' });
+  }
+
+  next();
+};
+
+router.post('/verify-user', internalAuth, async (req, res) => {
+  try {
+    const { tawiTawiUserId, email } = req.body;
+    
+    let user = await User.findOne({ tawiTawiId: tawiTawiUserId }) || await User.findOne({ email });
+
+    if (user) {
+      if (!user.tawiTawiId) {
+        user.tawiTawiId = tawiTawiUserId;
+        await user.save();
+        console.info(`[Auth Info] Existing native user linked to Gateway ID: ${email}`);
+      }
+      return res.status(200).json({
+        isLinked: true,
+        requiresRegistration: false,
+        externalUserId: user._id.toString()
+      });
+    } else {
+      return res.status(200).json({
+        isLinked: false,
+        requiresRegistration: true,
+        externalUserId: null
+      });
+    }
+  } catch (err) {
+    console.error("[System Error] Handshake verification failed:", err.message);
+    res.status(500).json({ success: false, message: "Internal server error." });
+  }
+});
+
+router.post('/register-user', internalAuth, async (req, res) => {
+  try {
+    const { tawiTawiUserId, email, fullName, contactNumber, region } = req.body;
+    
+    const randomPassword = crypto.randomBytes(16).toString('hex');
+    const user = new User({
+      name: fullName,
+      email: email,
+      password: randomPassword,
+      role: 'tourist',
+      tawiTawiId: tawiTawiUserId,
+      contactNumber: contactNumber || null,
+      region: region || null
+    });
+    
+    await user.save();
+    console.info(`[Auth Info] New service account created via Gateway for: ${email}`);
+    
+    return res.status(201).json({
+      isLinked: true,
+      externalUserId: user._id.toString()
+    });
+  } catch (err) {
+    console.error("[System Error] B2B User Registration failed:", err.message);
+    res.status(500).json({ success: false, message: "Failed to create service account." });
+  }
+});
+
+// ==========================================
+// NATIVE AUTH ROUTES
 // ==========================================
 router.post('/auth/signup', async (req, res) => {
   const { name, email, password, role, region, contactNumber } = req.body;
@@ -43,6 +183,7 @@ router.post('/auth/signup', async (req, res) => {
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: { id: user._id, name, email, role: finalRole, region, contactNumber } });
   } catch (err) {
+    console.error("[System Error] Signup failed:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -58,6 +199,7 @@ router.post('/auth/login', async (req, res) => {
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, region: user.region, contactNumber: user.contactNumber } });
   } catch (err) {
+    console.error("[System Error] Login failed:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -92,7 +234,7 @@ router.post('/generate-itinerary', authenticate, async (req, res) => {
     }
     res.end();
   } catch (err) {
-    console.error(err);
+    console.error("[System Error] Itinerary stream failed:", err.message);
     res.write("\n\nFailed to complete the itinerary generation.");
     res.end();
   }
@@ -139,13 +281,11 @@ router.post('/destinations', authenticate, async (req, res) => {
     await destination.save();
     res.status(201).json(destination);
   } catch (err) {
+    console.error("[Database Error] Failed to save destination:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
 
-// ==========================================
-// RATE DESTINATION ROUTE
-// ==========================================
 router.post('/destinations/:id/rate', authenticate, async (req, res) => {
   try {
     const { rating } = req.body;
@@ -153,16 +293,14 @@ router.post('/destinations/:id/rate', authenticate, async (req, res) => {
     
     if (!dest) return res.status(404).json({ message: 'Destination not found' });
 
-    // Failsafe: Ensure the ratings array exists
     if (!dest.ratings) dest.ratings = [];
 
-    // Check if this user already rated
     const existingRatingIndex = dest.ratings.findIndex(r => r.userId === req.user._id.toString());
     
     if (existingRatingIndex >= 0) {
-      dest.ratings[existingRatingIndex].value = rating; // Update existing
+      dest.ratings[existingRatingIndex].value = rating; 
     } else {
-      dest.ratings.push({ userId: req.user._id.toString(), value: rating }); // Add new
+      dest.ratings.push({ userId: req.user._id.toString(), value: rating }); 
     }
     
     await dest.save();
@@ -228,6 +366,7 @@ router.post('/itineraries', authenticate, async (req, res) => {
     await itinerary.save();
     res.status(201).json(itinerary);
   } catch (err) {
+    console.error("[Database Error] Failed to save itinerary:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -359,6 +498,7 @@ router.get('/analytics', authenticate, async (req, res) => {
     });
 
   } catch (err) {
+    console.error("[System Error] Failed to load analytics data:", err.message);
     res.status(500).json({ message: 'Failed to load analytics data' });
   }
 });
